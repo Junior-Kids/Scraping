@@ -1,13 +1,13 @@
 #!/bin/bash
-# ============================================================
-# SPECTRA CAPTCHA SOLVER - INSTALLER
-# BY: DAFFA_SUKA LOLIPOP
-# ============================================================
 
 R="\033[91m"; G="\033[92m"; Y="\033[93m"; C="\033[96m"; W="\033[97m"; N="\033[0m"
 BOLD="\033[1m"; DIM="\033[2m"
 
-# ==================== BANNER ====================
+AUTHOR="Junior-Kids"
+LOG="install.log"
+FAILED=0
+: > "$LOG"
+
 banner() {
     clear
     echo ""
@@ -23,14 +23,14 @@ banner() {
     echo -e "${Y}  ░╚════╝░╚═╝░░╚═╝╚═╝░░░░░░░░╚═╝░░░╚═╝░░╚═╝╚═╝╚═╝╚═╝░░╚═╝${N}"
     echo ""
     echo -e "${W}          [ SPECTRA CAPTCHA SOLVER ]${N}"
-    echo -e "${DIM}          BY: DAFFA_SUKA LOLIPOP${N}"
+    echo -e "${DIM}          BY: ${AUTHOR}${N}"
     echo -e "${W}  ──────────────────────────────────────────────────────${N}"
     echo ""
 }
 
-# ==================== PANEL SIMPEL ====================
 panel() {
-    echo -e "${W}  ── ${BOLD}${Y}$1${N} ${W}${N}"
+    echo ""
+    echo -e "${W}  ── ${BOLD}${Y}$1${N}"
     echo ""
 }
 
@@ -38,105 +38,195 @@ item() {
     echo -e "  ${C}【${W}•${C}】${N} $1"
 }
 
-# ==================== LOADING ====================
-loading() {
-    local text="$1"
-    local frames=("[■□□□□□□□□□]" "[■■□□□□□□□□]" "[■■■□□□□□□□]" "[■■■■□□□□□□]" "[■■■■■□□□□□]" "[■■■■■■□□□□]" "[■■■■■■■□□□]" "[■■■■■■■■□□]" "[■■■■■■■■■□]" "[■■■■■■■■■■]")
-    local colors=("\033[91m" "\033[93m" "\033[92m" "\033[96m" "\033[95m")
-    echo ""
-    for i in $(seq 0 19); do
-        local c=${colors[$((i % 5))]}
-        local f=${frames[$((i % 10))]}
-        printf "\r\t ${c}${text}...${N} ${f} "
-        sleep 0.15
+step() {
+    local text="$1"; shift
+    local frames=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
+    local i=0
+    echo ">>> $text" >> "$LOG"
+    "$@" >> "$LOG" 2>&1 &
+    local pid=$!
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "\r  ${C}%s${N} %s..." "${frames[$((i % 10))]}" "$text"
+        i=$((i + 1))
+        sleep 0.1
     done
-    printf "\r\t ${G}✓ ${text} selesai!     ${N}\n"
-    echo ""
+    wait "$pid"
+    local rc=$?
+    if [ $rc -eq 0 ]; then
+        printf "\r  ${G}✓${N} %-45s\n" "$text"
+    else
+        printf "\r  ${R}✗${N} %-45s\n" "$text"
+        FAILED=$((FAILED + 1))
+    fi
+    return $rc
 }
 
-# ==================== ENV CHECK ====================
+detect_env() {
+    if [ -n "$TERMUX_VERSION" ] || [ -d "/data/data/com.termux" ] || [[ "$PREFIX" == *com.termux* ]]; then
+        ENV="termux"
+        ENV_NAME="Termux (Android)"
+        PY="python"
+    else
+        ENV="linux"
+        ENV_NAME=$(grep -m1 '^PRETTY_NAME=' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"')
+        ENV_NAME="${ENV_NAME:-Linux}"
+        PY="python3"
+    fi
+
+    if [ "$ENV" = "linux" ]; then
+        if [ "$(id -u)" -eq 0 ]; then
+            SUDO=""
+        elif command -v sudo >/dev/null 2>&1; then
+            SUDO="sudo"
+        else
+            SUDO=""
+            NO_ROOT=1
+        fi
+        if command -v apt-get >/dev/null 2>&1; then PM="apt"
+        elif command -v pacman >/dev/null 2>&1; then PM="pacman"
+        elif command -v dnf >/dev/null 2>&1; then PM="dnf"
+        else PM=""
+        fi
+    fi
+}
+
 check_env() {
     panel "CHECK ENVIRONMENT"
-    if [ -n "$TERMUX_VERSION" ] || [ -d "/data/data/com.termux" ]; then
-        ENV="termux"
-        item "Environment : ${Y}Termux${N}"
-    elif grep -qi "kali" /etc/os-release 2>/dev/null; then
-        ENV="kali"
-        item "Environment : ${Y}Kali Linux${N}"
-    elif grep -qi "debian\|ubuntu" /etc/os-release 2>/dev/null; then
-        ENV="debian"
-        item "Environment : ${Y}Debian/Ubuntu${N}"
-    else
-        ENV="unknown"
-        item "Environment : ${Y}Unknown${N}"
-    fi
+    detect_env
+    item "Environment : ${Y}${ENV_NAME}${N}"
     item "OS          : ${Y}$(uname -s)${N}"
     item "Arch        : ${Y}$(uname -m)${N}"
-    PY_VER=$(python3 --version 2>/dev/null || echo "Not found")
-    item "Python      : ${Y}${PY_VER}${N}"
-    echo ""
+
+    if ! command -v "$PY" >/dev/null 2>&1; then
+        item "Python      : ${R}Not found${N}"
+        return
+    fi
+    item "Python      : ${Y}$($PY --version 2>&1)${N}"
 }
 
-# ==================== INSTALL DEPS ====================
-install_python_deps() {
+install_system_deps() {
+    panel "SYSTEM PACKAGES"
     if [ "$ENV" = "termux" ]; then
-        loading "Update pip"
-        pip install --upgrade pip >/dev/null 2>&1
-        loading "Install Python packages"
-        pip install rich requests beautifulsoup4 lxml >/dev/null 2>&1
-        loading "Install Playwright"
-        pip install playwright >/dev/null 2>&1
-        loading "Install Chromium"
-        python -m playwright install chromium >/dev/null 2>&1
-    else
-        loading "Update pip"
-        pip3 install --upgrade pip >/dev/null 2>&1 || pip install --upgrade pip >/dev/null 2>&1
-        loading "Install Python packages"
-        pip3 install rich requests beautifulsoup4 lxml >/dev/null 2>&1 || pip install rich requests beautifulsoup4 lxml >/dev/null 2>&1
-        loading "Install Playwright"
-        pip3 install playwright >/dev/null 2>&1 || pip install playwright >/dev/null 2>&1
-        loading "Install Chromium"
-        python3 -m playwright install chromium >/dev/null 2>&1 || python -m playwright install chromium >/dev/null 2>&1
+        step "Update package list" pkg update -y
+        step "Install python & build tools" pkg install -y python libxml2 libxslt clang make
+        return
+    fi
+
+    if [ -n "$NO_ROOT" ]; then
+        item "${Y}Tanpa root/sudo, lewati paket sistem${N}"
+        return
+    fi
+
+    case "$PM" in
+        apt)
+            step "Update package list" $SUDO apt-get update -y
+            step "Install python & build tools" $SUDO apt-get install -y python3 python3-pip python3-venv build-essential libxml2-dev libxslt1-dev
+            ;;
+        pacman)
+            step "Install python & build tools" $SUDO pacman -S --noconfirm --needed python python-pip base-devel libxml2 libxslt
+            ;;
+        dnf)
+            step "Install python & build tools" $SUDO dnf install -y python3 python3-pip gcc make libxml2-devel libxslt-devel
+            ;;
+        *)
+            item "${Y}Package manager tidak dikenali, lewati${N}"
+            ;;
+    esac
+}
+
+setup_pip() {
+    PIP="$PY -m pip"
+    PIP_FLAGS=""
+    if [ "$ENV" = "linux" ]; then
+        if ! $PY -c 'import sys; sys.exit(0 if sys.prefix != sys.base_prefix else 1)' 2>/dev/null; then
+            if $PIP install --help 2>/dev/null | grep -q "break-system-packages"; then
+                PIP_FLAGS="--break-system-packages"
+            fi
+        fi
     fi
 }
 
-# ==================== SETUP PROJECT ====================
+install_python_deps() {
+    panel "PYTHON PACKAGES"
+    if ! command -v "$PY" >/dev/null 2>&1; then
+        item "${R}Python tidak ditemukan, instalasi dibatalkan${N}"
+        exit 1
+    fi
+
+    setup_pip
+    step "Update pip" $PIP install --upgrade pip $PIP_FLAGS
+    step "Install rich, requests, bs4, lxml, cython" $PIP install $PIP_FLAGS rich requests beautifulsoup4 lxml cython
+    step "Install playwright" $PIP install $PIP_FLAGS playwright
+
+    if [ -f requirements.txt ]; then
+        step "Install requirements.txt" $PIP install $PIP_FLAGS -r requirements.txt
+    fi
+}
+
+install_browser() {
+    panel "BROWSER ENGINE"
+    if [ "$ENV" = "termux" ]; then
+        item "${Y}Chromium Playwright tidak didukung langsung di Termux${N}"
+        item "Solusi: ${G}pkg install proot-distro${N} lalu install Debian/Kali di dalamnya"
+        item "Jalankan ulang installer ini di dalam distro tersebut"
+        return
+    fi
+
+    if [ "$(id -u)" -eq 0 ]; then
+        step "Install Chromium + dependensi" $PY -m playwright install --with-deps chromium
+    else
+        step "Install Chromium" $PY -m playwright install chromium
+        if [ -n "$SUDO" ]; then
+            step "Install dependensi Chromium" $SUDO env "PATH=$PATH" $PY -m playwright install-deps chromium
+        fi
+    fi
+}
+
 setup_project() {
-    loading "Create output & assets folder"
+    panel "PROJECT SETUP"
     mkdir -p output assets
     touch output/.gitkeep assets/.gitkeep
     item "output/  : ${G}OK${N}"
     item "assets/  : ${G}OK${N}"
+    [ -f install.sh ] && chmod +x install.sh
+    [ -f run.py ] && chmod +x run.py
 }
 
-# ==================== TEST IMPORT ====================
 test_imports() {
-    loading "Test import modules"
-    if [ "$ENV" = "termux" ]; then PY=python; else PY=python3; fi
-
-    $PY -c 'import rich' 2>/dev/null && echo -e "  ${G}✓ rich${N}" || echo -e "  ${R}✗ rich${N}"
-    $PY -c 'import requests' 2>/dev/null && echo -e "  ${G}✓ requests${N}" || echo -e "  ${R}✗ requests${N}"
-    $PY -c 'import bs4' 2>/dev/null && echo -e "  ${G}✓ beautifulsoup4${N}" || echo -e "  ${R}✗ beautifulsoup4${N}"
-    $PY -c 'import lxml' 2>/dev/null && echo -e "  ${G}✓ lxml${N}" || echo -e "  ${R}✗ lxml${N}"
-    $PY -c 'import playwright' 2>/dev/null && echo -e "  ${G}✓ playwright${N}" || echo -e "  ${R}✗ playwright${N}"
+    panel "VERIFY MODULES"
+    local mods=("rich:rich" "requests:requests" "bs4:beautifulsoup4" "lxml:lxml" "playwright:playwright" "Cython:cython")
+    local pair mod label
+    for pair in "${mods[@]}"; do
+        mod="${pair%%:*}"
+        label="${pair##*:}"
+        if $PY -c "import $mod" 2>/dev/null; then
+            echo -e "  ${G}✓ ${label}${N}"
+        else
+            echo -e "  ${R}✗ ${label}${N}"
+            FAILED=$((FAILED + 1))
+        fi
+    done
 }
 
-# ==================== MAIN ====================
 main() {
     banner
     check_env
-    panel "STARTING INSTALLATION"
+    install_system_deps
     install_python_deps
+    install_browser
     setup_project
     test_imports
-    echo ""
+
     panel "INSTALLATION COMPLETE!"
-    item "How to run it : ${G}python3 main.py${N}"
+    if [ "$FAILED" -gt 0 ]; then
+        item "${Y}${FAILED} langkah gagal, cek detail di ${W}${LOG}${N}"
+    fi
+    item "How to run it : ${G}${PY} run.py${N}"
     item "Output folder : ${G}./output/${N}"
     echo ""
     echo -e "${W}  ──────────────────────────────────────────────────────${N}"
-    echo -e "${BOLD}${Y}  THANKS FOR USING SPECTRA CAPTCHA!${N}"
-    echo -e "${DIM}  BY: DAFFA_SUKA LOLIPOP${N}"
+    echo -e "${BOLD}${Y}  THANKS FOR USING SCRAPING CAPTCHA!${N}"
+    echo -e "${DIM}  BY: ${AUTHOR}${N}"
     echo -e "${W}  ──────────────────────────────────────────────────────${N}"
     echo ""
 }
