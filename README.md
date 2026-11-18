@@ -96,10 +96,19 @@ Utilities for evaluating endpoint accessibility and generating technical request
 
 ### System Requirements
 
-- **Operating System:** Linux, macOS, or Windows (WSL)
-- **Mobile Environment:** Termux (if dependencies are supported)
+- **Operating System:** Linux (glibc-based, e.g. Debian/Ubuntu/Kali), macOS, or Windows (WSL)
 - **Python:** 3.8 or newer
 - **Internet:** stable connection
+
+> ⚠️ **Termux (Android) is not supported natively.** The compiled `.so` modules are linked against glibc and require `libc.so.6`, which Android's Bionic libc does not provide. To run this on Android, install a Linux distro inside Termux first:
+>
+> ```bash
+> pkg install proot-distro -y
+> proot-distro install debian
+> proot-distro login debian
+> ```
+>
+> Then follow the installation steps below **inside** that Debian shell.
 
 ### 1. Clone the Repository
 
